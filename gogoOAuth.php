@@ -331,7 +331,8 @@
             }
             
             // Params is now a string make it a SimpleXMLElement for validation.
-            
+            if(strlen($params))
+            {
             $params = new SimpleXMLElement($params);              
             $this->validate_post_xml($method, $params);      
             
@@ -347,6 +348,7 @@
             if($this->TrimXMLDeclarationFromPost)
             {
               $params = trim(preg_replace('/(<\?xml[^>]*>)/', '', trim($params)));
+              }
             }
           }
           break;
