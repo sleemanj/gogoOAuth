@@ -47,5 +47,6 @@
       $dom->loadXML($this->asXML());
       return $dom->saveXML();
     }
+    
   }  
 ?>

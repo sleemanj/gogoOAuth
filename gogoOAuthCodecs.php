@@ -93,6 +93,8 @@
     
     public function from_query_string($string)
     {
+      $RestoreGPC = false;
+      
       if(function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc())
       { 
         // Well, I certainly don't want MQ GPC, but we will turn it back on when we are
@@ -231,7 +233,8 @@
         
         if(is_array($v))
         {
-          if(is_numeric(array_pop(array_keys($v))))
+          $keys = array_keys($v);
+          if(is_numeric(array_pop($keys)))
           { // A numerically indexed array is multiple copies of the element
             foreach($v as $vv)
             {

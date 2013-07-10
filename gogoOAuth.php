@@ -234,7 +234,7 @@
      *                       that is, json and urlencoded versions will validate a (nested) associated array
      *                       and XML will validate a SimpleXMLElement structure.
      *
-     *  @param string $ContenType Mime content type to set on the POST, if NULL a best-guess is made 
+     *  @param string $ContentType Mime content type to set on the POST, if NULL a best-guess is made 
      *          (XML is text/xml, JSON is application/json, and urlencoded is application/x-www-form-urlencoded)
      *
      *  @param string $namespace Namespace to set for the root element in XML, if any.
@@ -289,6 +289,7 @@
         }
       }
       
+
       // If this is text/plain, we are done
       if($ContentType != 'text/plain')
       {                       
@@ -329,27 +330,29 @@
                 $params = $this->codec()->array_to_xml($params);
               }
             }
-            
+                        
             // Params is now a string make it a SimpleXMLElement for validation.
             if(strlen($params))
             {
-            $params = new SimpleXMLElement($params);              
-            $this->validate_post_xml($method, $params);      
-            
-            if(!isset($namespace)) $namespace = $this->DefaultNamespaceForXMLPost;
-            if($namespace)
-            {
-              $params['xmlns'] = $namespace;
-            }
-            
-            // And finally one more convert to a string
-            $params = $params->asXML();    
-            
-            if($this->TrimXMLDeclarationFromPost)
-            {
-              $params = trim(preg_replace('/(<\?xml[^>]*>)/', '', trim($params)));
+              $params = new SimpleXMLElement($params);        
+                      
+              $this->validate_post_xml($method, $params);      
+              
+              if(!isset($namespace)) $namespace = $this->DefaultNamespaceForXMLPost;
+              if($namespace)
+              {
+                $params['xmlns'] = $namespace;
+              }
+              
+              // And finally one more convert to a string
+              $params = $params->asXML();    
+              
+              if($this->TrimXMLDeclarationFromPost)
+              {
+                $params = trim(preg_replace('/(<\?xml[^>]*>)/', '', trim($params)));
               }
             }
+    
           }
           break;
           
@@ -569,6 +572,8 @@
       $Headers = array(
         'Authorization: OAuth realm="",' . $this->codec()->to_query_string($oauth_params, 1, 0, ',')
       );
+             
+      $FormPostData = NULL;
                   
       // Assemble the URL, Headers and any Form Data      
       {
@@ -590,8 +595,7 @@
           case 'DELETE':
             if(is_array($call_params) && count($call_params)) 
             {
-              $url .= '?' . $this->codec()->to_query_string($call_params);
-              $FormPostData = NULL;
+              $url .= '?' . $this->codec()->to_query_string($call_params);              
             }
           break;
         }
