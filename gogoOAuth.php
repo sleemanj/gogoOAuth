@@ -59,6 +59,8 @@
     protected $TrimXMLDeclarationFromPost = TRUE; // If set to TRUE, the XML declaratin < ?xml ..... will be removed when POSTing
     protected $DefaultAPIEndpintExtention = NULL;
     
+    protected $CacheCallbacks = NULL; // Use set_cache_callbacks() to set a store and retrieve callback
+
     /** 
      * Create an oauth object.
      *
@@ -592,10 +594,34 @@
             break;
             
           case 'GET':
+            if(is_array($call_params) && count($call_params)) 
+            {
+              $url .= '?' . $this->codec()->to_query_string($call_params);
+              $FormPostData = NULL;
+            }
+            
+            // If we have a cache handler, since this is a GET request we can
+            // cache this, the cache key needs to be unique 
+            // to the URL
+            // any non-oauth headers
+            // own consumer key
+            // and the authenticated user's token
+            if(isset($this->CacheCallbacks))
+            {
+              $CacheKey 
+                =      $url . ':' . 
+                       implode(array_slice($Headers, 1), 1) . ':' .
+                       $this->ConsumerKey . ':' .
+                       $token['oauth_token']
+                  ;
+            }
+          break;
+
           case 'DELETE':
             if(is_array($call_params) && count($call_params)) 
             {
               $url .= '?' . $this->codec()->to_query_string($call_params);              
+              $FormPostData = NULL;
             }
           break;
         }
@@ -606,12 +632,65 @@
         }
       } 
       
+      // If we are caching the request, check if we have one that isn't expired
+      if(isset($CacheKey))
+      {
+        if($CachedResult = call_user_func_array($this->CacheCallbacks['retrieve'], array($CacheKey)))
+        {
+          list($response, $info) = $CachedResult;                   
+          $ResponseClass = $this->ResponseClass;
+          return new $ResponseClass($response, $info, $this->codec());
+        }
+      }
+
       // Now we do the http request, which is done with curl in this class
       list($response,$info) = $this->perform_http_request($url, $request_method, $Headers, $FormPostData);
 
       // Curl has done it's bit, so wrap the response we got into the appropriate response class and return
       $ResponseClass = $this->ResponseClass;
-      return new $ResponseClass($response, $info, $this->codec());
+      $ResponseObject = new $ResponseClass($response, $info, $this->codec());
+      
+      // If we are caching the request, do so provided it was OK, using the expires the response parsed out of the headers
+      if(isset($CacheKey) && $ResponseObject->is_ok())
+      {
+        call_user_func_array($this->CacheCallbacks['store'], array(array($response, $info), $CacheKey, $ResponseObject->expires()));
+      }
+      
+      return $ResponseObject;
+    }
+    
+    /** Set a pair of callbacks for storing and retrieving arbitrary data in a cache by a string key.
+     *
+     *  @param Array|NULL Either an array with callable elements "store" and "retrieve" or NULL
+     *
+     *      Example using Lambda functions...
+     *        array('store' => function($Data, $Key, $Expires){ ...... }, 'retrieve' => function($Key){  ....... } )
+     *
+     *      Example using methods of some object
+     *        array('store' => array($YourObject, 'your_store_method'), 'retrieve' => array($YourObject, 'your_retrieve_method'),  )
+     *
+     *     where $Data is arbitrary data, $Key is a string and $Expires is a unix timestamp (seconds since epoch)     
+     *     store should return true/false, and retrieve should return the data, or NULL if nothing was found to match the key 
+     *     data should not be returned once it has expired
+     *     storing should overwrite previously stored data with the same key
+     *     
+     */
+     
+    public function set_cache_callbacks($CacheCallbacks = NULL)
+    {
+      if($CacheCallbacks)
+      {
+        if(!isset($CacheCallbacks['store'])
+        || !isset($CacheCallbacks['retrieve'])
+        || !is_callable($CacheCallbacks['store'])
+        || !is_callable($CacheCallbacks['retrieve'])
+        )
+        {
+          throw new Exception("Invalid callbacks provided for caching, both store and retrieve must be provided and be callable.");
+        }
+      }
+      
+      $this->CacheCallbacks = $CacheCallbacks;
     }
 
 
