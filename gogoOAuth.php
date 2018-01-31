@@ -61,6 +61,8 @@
     
     protected $CacheCallbacks = NULL; // Use set_cache_callbacks() to set a store and retrieve callback
 
+    protected $DefaultCurlOpts = array(); // Use set_default_curl_opts() to set this (or pass to the constructor)
+    
     /** 
      * Create an oauth object.
      *
@@ -88,9 +90,10 @@
      *   Examples: TradeMe array('RequestToken' => 'RequestToken', 'AccessToken'  => 'AccessToken', 'Authorize'     => 'Authorize')
      *             Twitter array('RequestToken' => 'request_token', 'AccessToken'  => 'access_token', 'Authorize'     => 'authorize')
      *
+     * @param array An array of curl options (as would be passed to curl_setopt_array) which are necessary (over and above some built in defaults), a common one to need is array( CURLOPT_SSL_VERIFYPEER => false ) to prevent SSL issues while still using SSL.
      */
      
-    public function __construct($consumer_key, $consumer_secret, $default_callback = NULL, $api_base = NULL, $oauth_base = NULL, $default_namespace_for_xml_post = NULL, $defalt_api_endpoint_extention = NULL, $oauth_methods = NULL )
+    public function __construct($consumer_key, $consumer_secret, $default_callback = NULL, $api_base = NULL, $oauth_base = NULL, $default_namespace_for_xml_post = NULL, $defalt_api_endpoint_extention = NULL, $oauth_methods = NULL, $default_curl_opts = array() )
     {
         $this->ConsumerKey = $consumer_key;
         $this->ConsumerSecret = $consumer_secret;
@@ -101,6 +104,7 @@
         if(isset($default_callback)) $this->DefaultCallback = $default_callback;  
         if(isset($default_namespace_for_xml_post)) $this->DefaultNamespaceForXMLPost = $default_namespace_for_xml_post;
         if(isset($defalt_api_endpoint_extention)) $this->DefaultAPIEndpintExtention = $defalt_api_endpoint_extention;
+        if(isset($default_curl_opts)) $this->DefaultCurlOpts = $default_curl_opts;
     }
 
     /**
@@ -693,7 +697,17 @@
       $this->CacheCallbacks = $CacheCallbacks;
     }
 
-
+    /** Set/change the default curl options (in addition to some hard-coded defaults unless you overwrite them).
+     *
+     *  @param array Curl options array as would be passed to curl_setopt_array
+     *
+     */
+    
+    public function set_default_curl_opts($Options)
+    {
+      $this->DefaultCurlOpts = $Options;
+    }
+    
     /** Perform an arbitrary HTTP request and return a tuple of the full result including headers, and an 
      *  information array, with as per http://nz.php.net/manual/en/function.curl-getinfo.php
      *
@@ -709,13 +723,13 @@
     {  
       $curl = curl_init($URL);            
       
-      curl_setopt_array($curl, array(
+      curl_setopt_array($curl, array_replace(array(
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_TIMEOUT        => 60,
         CURLOPT_USERAGENT      => 'gogoOAuth (' . $_SERVER['HTTP_HOST'] . ')',
         CURLOPT_HEADER         => TRUE,
         CURLOPT_HTTPHEADER     => $Headers
-      ));
+      ), $this->DefaultCurlOpts));
       
       if(defined('CURLINFO_HEADER_OUT'))
       {
@@ -754,7 +768,9 @@
       {
         $info['request_header'] = implode("\r\n", $Headers);
       }
-      
+      $info['errno'] = curl_errno($curl);
+      $info['errmsg'] = curl_error($curl);
+
       // Ditch curl and return the response and info
       curl_close($curl);      
       return array($response, $info);
